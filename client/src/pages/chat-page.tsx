@@ -2,7 +2,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Settings, LogOut } from "lucide-react";
+import { Settings, LogOut, Beaker } from "lucide-react";
 import ChatInterface from "@/components/chat/chat-interface";
 import { Chat } from "@shared/schema";
 import { Loader2 } from "lucide-react";
@@ -36,6 +36,11 @@ export default function ChatPage() {
             <Button variant="ghost" size="icon" asChild>
               <Link href="/settings">
                 <Settings className="h-5 w-5" />
+              </Link>
+            </Button>
+            <Button variant="ghost" size="icon" asChild>
+              <Link href="/test">
+                <Beaker className="h-5 w-5" />
               </Link>
             </Button>
             <Button 

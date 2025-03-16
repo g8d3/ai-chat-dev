@@ -9,6 +9,8 @@ async function getOpenAIClient(modelId: number) {
   const provider = await storage.getProvider(model.providerId);
   if (!provider) throw new Error("Provider not found");
 
+  console.log("Using model:", model.modelId, "from provider:", provider.name);
+
   return new OpenAI({ 
     apiKey: provider.apiKey,
     baseURL: provider.baseUrl 
@@ -22,6 +24,7 @@ export async function generateResponse(message: string, modelId: number): Promis
 
     const openai = await getOpenAIClient(modelId);
 
+    console.log("Making API request to provider");
     const response = await openai.chat.completions.create({
       model: model.modelId,
       messages: [
@@ -29,6 +32,7 @@ export async function generateResponse(message: string, modelId: number): Promis
       ],
     });
 
+    console.log("Received API response");
     return response.choices[0].message.content || "No response generated";
   } catch (error) {
     console.error("OpenAI API error:", error);
