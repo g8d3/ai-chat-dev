@@ -4,17 +4,12 @@ import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { WebSocketServer, WebSocket } from "ws";
 import { insertProviderSchema, insertModelSchema, insertPromptSchema, insertChatSchema, insertMessageSchema } from "@shared/schema";
+import { generateResponse } from "./openai";
 
 function extractApiKey(key: string) {
   const firstPart = key.slice(0, 4);
   const lastPart = key.slice(-4);
   return `${firstPart}${'*'.repeat(key.length - 8)}${lastPart}`;
-}
-
-async function generateAIResponse(message: string, modelId: number): Promise<string> {
-  // For now, return a simple echo response
-  // TODO: Implement actual AI provider integration
-  return `[AI Response] ${message}`;
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -56,12 +51,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Models
-  app.get("/api/providers/:providerId/models", async (req, res) => {
+  app.get("/api/models", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const provider = await storage.getProvider(parseInt(req.params.providerId));
-    if (!provider || provider.userId !== req.user.id) return res.sendStatus(404);
-    const models = await storage.getModels(provider.id);
-    res.json(models);
+    const providers = await storage.getProviders(req.user.id);
+    const allModels = [];
+
+    for (const provider of providers) {
+      const models = await storage.getModels(provider.id);
+      allModels.push(...models);
+    }
+
+    res.json(allModels);
   });
 
   app.post("/api/models", async (req, res) => {
@@ -71,6 +71,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!provider || provider.userId !== req.user.id) return res.sendStatus(404);
     const model = await storage.createModel(data);
     res.status(201).json(model);
+  });
+
+  app.delete("/api/models/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const model = await storage.getModel(parseInt(req.params.id));
+    if (!model) return res.sendStatus(404);
+    const provider = await storage.getProvider(model.providerId);
+    if (!provider || provider.userId !== req.user.id) return res.sendStatus(404);
+    await storage.deleteModel(model.id);
+    res.sendStatus(204);
   });
 
   // System Prompts
@@ -136,7 +146,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const userMessage = await storage.createMessage(data);
 
     // Generate and create AI response
-    const aiResponse = await generateAIResponse(data.content, chat.modelId);
+    const aiResponse = await generateResponse(data.content, chat.modelId);
     const aiMessage = await storage.createMessage({
       chatId: chat.id,
       role: "assistant",

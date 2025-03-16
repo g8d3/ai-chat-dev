@@ -21,8 +21,8 @@ export default function ModelList() {
     queryKey: ["/api/providers"],
   });
 
-  const { data: models = [] } = useQuery<AIModel[]>({
-    queryKey: ["/api/providers", providers[0]?.id, "models"],
+  const { data: models = [], isLoading: modelsLoading } = useQuery<AIModel[]>({
+    queryKey: ["/api/models"],
     enabled: providers.length > 0,
   });
 
@@ -42,7 +42,7 @@ export default function ModelList() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/providers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/models"] });
       form.reset();
     },
   });
@@ -52,7 +52,7 @@ export default function ModelList() {
       await apiRequest("DELETE", `/api/models/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/providers"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/models"] });
     },
   });
 
@@ -99,7 +99,7 @@ export default function ModelList() {
     },
   ];
 
-  if (providersLoading) {
+  if (providersLoading || modelsLoading) {
     return (
       <div className="flex justify-center p-8">
         <Loader2 className="h-8 w-8 animate-spin text-border" />
