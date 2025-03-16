@@ -5,6 +5,7 @@ import { DataTable } from "@/components/table/data-table";
 import { Loader2, Play, MessageSquare, Settings } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Link } from "wouter";
+import { apiRequest } from "@/lib/queryClient";
 
 interface Test {
   id: number;
@@ -12,6 +13,7 @@ interface Test {
   description: string;
   status: "idle" | "running" | "passed" | "failed";
   lastRun?: Date;
+  currentStep?: string;
 }
 
 const initialTests: Test[] = [
@@ -25,30 +27,94 @@ const initialTests: Test[] = [
 
 export default function TestPage() {
   const [tests, setTests] = useState<Test[]>(initialTests);
-  const { user } = useAuth();
+  const { user, registerMutation } = useAuth();
 
   const runTest = async (test: Test) => {
-    // Update test status
+    // Update test status to running
     setTests(prev =>
       prev.map(t =>
         t.id === test.id ? { ...t, status: "running" } : t
       )
     );
 
-    try {
-      // Simulate test execution with actual UI interactions
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Update test status on completion
+    const updateStep = (step: string) => {
       setTests(prev =>
         prev.map(t =>
-          t.id === test.id ? { ...t, status: "passed", lastRun: new Date() } : t
+          t.id === test.id ? { ...t, currentStep: step } : t
+        )
+      );
+    };
+
+    try {
+      // Step 1: Register user
+      updateStep("Registering user 'ss'...");
+      if (!user) {
+        await registerMutation.mutateAsync({
+          username: "ss",
+          password: "ss"
+        });
+      }
+
+      // Step 2: Create provider
+      updateStep("Creating OpenRouter provider...");
+      const providerRes = await apiRequest("POST", "/api/providers", {
+        name: "openrouter",
+        baseUrl: "https://openrouter.ai/api/v1",
+        apiKey: "123123123"
+      });
+      const provider = await providerRes.json();
+
+      // Step 3: Create model
+      updateStep("Creating AI model...");
+      const modelRes = await apiRequest("POST", "/api/models", {
+        name: "open-r1/olympiccoder-32b:free",
+        providerId: provider.id,
+        modelId: "open-r1/olympiccoder-32b:free",
+        isDefault: true
+      });
+      const model = await modelRes.json();
+
+      // Step 4: Create chat
+      updateStep("Creating new chat...");
+      const chatRes = await apiRequest("POST", "/api/chats", {
+        name: "Test Chat",
+        modelId: model.id,
+        isDocument: false
+      });
+      const chat = await chatRes.json();
+
+      // Step 5: Send test message
+      updateStep("Sending test message...");
+      await apiRequest("POST", "/api/messages", {
+        chatId: chat.id,
+        role: "user",
+        content: "Hi"
+      });
+
+      // Wait a bit to see the response
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Update test status to passed
+      setTests(prev =>
+        prev.map(t =>
+          t.id === test.id ? { 
+            ...t, 
+            status: "passed", 
+            lastRun: new Date(),
+            currentStep: "Test completed successfully!" 
+          } : t
         )
       );
     } catch (error) {
+      console.error("Test failed:", error);
       setTests(prev =>
         prev.map(t =>
-          t.id === test.id ? { ...t, status: "failed", lastRun: new Date() } : t
+          t.id === test.id ? { 
+            ...t, 
+            status: "failed", 
+            lastRun: new Date(),
+            currentStep: `Test failed: ${error.message}` 
+          } : t
         )
       );
     }
@@ -82,7 +148,14 @@ export default function TestPage() {
           default:
             statusColor = "text-gray-600";
         }
-        return <span className={statusColor}>{test.status}</span>;
+        return (
+          <div className="space-y-1">
+            <span className={statusColor}>{test.status}</span>
+            {test.currentStep && test.status === "running" && (
+              <p className="text-sm text-muted-foreground">{test.currentStep}</p>
+            )}
+          </div>
+        );
       },
     },
     {
