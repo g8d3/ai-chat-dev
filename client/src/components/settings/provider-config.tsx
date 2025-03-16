@@ -7,14 +7,17 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, Pencil } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
+import { useState } from "react";
 
 export default function ProviderConfig() {
   const { data: providers = [], isLoading } = useQuery<AIProvider[]>({
     queryKey: ["/api/providers"],
   });
+
+  const [selectedProvider, setSelectedProvider] = useState<AIProvider | null>(null);
 
   const form = useForm({
     resolver: zodResolver(insertProviderSchema),
@@ -32,6 +35,18 @@ export default function ProviderConfig() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/providers"] });
+      form.reset();
+    },
+  });
+
+  const updateProviderMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<AIProvider> }) => {
+      const res = await apiRequest("PATCH", `/api/providers/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/providers"] });
+      setSelectedProvider(null);
       form.reset();
     },
   });
@@ -61,18 +76,34 @@ export default function ProviderConfig() {
     {
       id: "actions",
       cell: ({ row }: { row: { original: AIProvider } }) => (
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={() => deleteProviderMutation.mutate(row.original.id)}
-          disabled={deleteProviderMutation.isPending}
-        >
-          {deleteProviderMutation.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            "Delete"
-          )}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setSelectedProvider(row.original);
+              form.reset({
+                name: row.original.name,
+                baseUrl: row.original.baseUrl,
+                apiKey: row.original.apiKey,
+              });
+            }}
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => deleteProviderMutation.mutate(row.original.id)}
+            disabled={deleteProviderMutation.isPending}
+          >
+            {deleteProviderMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              "Delete"
+            )}
+          </Button>
+        </div>
       ),
     },
   ];
@@ -88,7 +119,15 @@ export default function ProviderConfig() {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Dialog>
+        <Dialog
+          open={!!selectedProvider}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedProvider(null);
+              form.reset();
+            }
+          }}
+        >
           <DialogTrigger asChild>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
@@ -97,14 +136,25 @@ export default function ProviderConfig() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>Add AI Provider</DialogTitle>
+              <DialogTitle>
+                {selectedProvider ? "Edit Provider" : "Add AI Provider"}
+              </DialogTitle>
               <DialogDescription>
-                Configure a new AI provider for your chat application.
+                Configure an AI provider for your chat application.
               </DialogDescription>
             </DialogHeader>
             <Form {...form}>
               <form
-                onSubmit={form.handleSubmit((data) => createProviderMutation.mutate(data))}
+                onSubmit={form.handleSubmit((data) => {
+                  if (selectedProvider) {
+                    updateProviderMutation.mutate({
+                      id: selectedProvider.id,
+                      data,
+                    });
+                  } else {
+                    createProviderMutation.mutate(data);
+                  }
+                })}
                 className="space-y-4"
               >
                 <FormField
@@ -149,12 +199,12 @@ export default function ProviderConfig() {
                 <Button
                   type="submit"
                   className="w-full"
-                  disabled={createProviderMutation.isPending}
+                  disabled={createProviderMutation.isPending || updateProviderMutation.isPending}
                 >
-                  {createProviderMutation.isPending ? (
+                  {(createProviderMutation.isPending || updateProviderMutation.isPending) ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : null}
-                  Add Provider
+                  {selectedProvider ? "Update Provider" : "Add Provider"}
                 </Button>
               </form>
             </Form>

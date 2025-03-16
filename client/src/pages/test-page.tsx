@@ -5,7 +5,7 @@ import { DataTable } from "@/components/table/data-table";
 import { Loader2, Play, MessageSquare, Settings } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Link } from "wouter";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface Test {
   id: number;
@@ -55,6 +55,9 @@ export default function TestPage() {
         });
       }
 
+      // Add delay to ensure registration completes
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       // Step 2: Create provider
       updateStep("Creating OpenRouter provider...");
       const providerRes = await apiRequest("POST", "/api/providers", {
@@ -63,6 +66,13 @@ export default function TestPage() {
         apiKey: "123123123"
       });
       const provider = await providerRes.json();
+
+      // Wait for provider creation
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      if (!provider?.id) {
+        throw new Error("Failed to create provider");
+      }
 
       // Step 3: Create model
       updateStep("Creating AI model...");
@@ -74,6 +84,17 @@ export default function TestPage() {
       });
       const model = await modelRes.json();
 
+      // Wait for model creation
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      if (!model?.id) {
+        throw new Error("Failed to create model");
+      }
+
+      // Invalidate relevant queries to refresh UI
+      await queryClient.invalidateQueries({ queryKey: ["/api/providers"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/models"] });
+
       // Step 4: Create chat
       updateStep("Creating new chat...");
       const chatRes = await apiRequest("POST", "/api/chats", {
@@ -83,16 +104,29 @@ export default function TestPage() {
       });
       const chat = await chatRes.json();
 
+      if (!chat?.id) {
+        throw new Error("Failed to create chat");
+      }
+
+      // Wait for chat creation
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       // Step 5: Send test message
       updateStep("Sending test message...");
-      await apiRequest("POST", "/api/messages", {
+      const messageRes = await apiRequest("POST", "/api/messages", {
         chatId: chat.id,
         role: "user",
         content: "Hi"
       });
+      const message = await messageRes.json();
 
-      // Wait a bit to see the response
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      if (!message?.id) {
+        throw new Error("Failed to send message");
+      }
+
+      // Wait for AI response
+      updateStep("Waiting for AI response...");
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
       // Update test status to passed
       setTests(prev =>
@@ -105,7 +139,7 @@ export default function TestPage() {
           } : t
         )
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error("Test failed:", error);
       setTests(prev =>
         prev.map(t =>

@@ -9,10 +9,11 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, Pencil } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
 import { z } from "zod";
+import { useState } from "react";
 
 type FormValues = z.infer<typeof insertModelSchema>;
 
@@ -25,6 +26,8 @@ export default function ModelList() {
     queryKey: ["/api/models"],
     enabled: providers.length > 0,
   });
+
+  const [selectedModel, setSelectedModel] = useState<AIModel | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(insertModelSchema),
@@ -43,6 +46,18 @@ export default function ModelList() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/models"] });
+      form.reset();
+    },
+  });
+
+  const updateModelMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<FormValues> }) => {
+      const res = await apiRequest("PATCH", `/api/models/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/models"] });
+      setSelectedModel(null);
       form.reset();
     },
   });
@@ -83,18 +98,35 @@ export default function ModelList() {
     {
       id: "actions",
       cell: ({ row }: { row: { original: AIModel } }) => (
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={() => deleteModelMutation.mutate(row.original.id)}
-          disabled={deleteModelMutation.isPending}
-        >
-          {deleteModelMutation.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            "Delete"
-          )}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setSelectedModel(row.original);
+              form.reset({
+                name: row.original.name,
+                providerId: row.original.providerId,
+                modelId: row.original.modelId,
+                isDefault: row.original.isDefault,
+              });
+            }}
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => deleteModelMutation.mutate(row.original.id)}
+            disabled={deleteModelMutation.isPending}
+          >
+            {deleteModelMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              "Delete"
+            )}
+          </Button>
+        </div>
       ),
     },
   ];
@@ -110,7 +142,15 @@ export default function ModelList() {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Dialog>
+        <Dialog
+          open={!!selectedModel}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedModel(null);
+              form.reset();
+            }
+          }}
+        >
           <DialogTrigger asChild>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
@@ -119,14 +159,23 @@ export default function ModelList() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>Add AI Model</DialogTitle>
+              <DialogTitle>{selectedModel ? "Edit Model" : "Add AI Model"}</DialogTitle>
               <DialogDescription>
                 Configure a new AI model for your chat application.
               </DialogDescription>
             </DialogHeader>
             <Form {...form}>
               <form
-                onSubmit={form.handleSubmit((data) => createModelMutation.mutate(data))}
+                onSubmit={form.handleSubmit((data) => {
+                  if (selectedModel) {
+                    updateModelMutation.mutate({
+                      id: selectedModel.id,
+                      data,
+                    });
+                  } else {
+                    createModelMutation.mutate(data);
+                  }
+                })}
                 className="space-y-4"
               >
                 <FormField
@@ -204,12 +253,12 @@ export default function ModelList() {
                 <Button
                   type="submit"
                   className="w-full"
-                  disabled={createModelMutation.isPending}
+                  disabled={createModelMutation.isPending || updateModelMutation.isPending}
                 >
-                  {createModelMutation.isPending ? (
+                  {(createModelMutation.isPending || updateModelMutation.isPending) ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : null}
-                  Add Model
+                  {selectedModel ? "Update Model" : "Add Model"}
                 </Button>
               </form>
             </Form>
