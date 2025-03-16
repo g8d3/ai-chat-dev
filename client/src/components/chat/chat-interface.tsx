@@ -37,14 +37,9 @@ export default function ChatInterface({ chats }: ChatInterfaceProps) {
     enabled: !!selectedChat,
   });
 
-  // Get the models for the chat
-  const { data: providers = [] } = useQuery<any[]>({
-    queryKey: ["/api/providers"],
-  });
-
+  // Get all models directly
   const { data: models = [] } = useQuery<AIModel[]>({
-    queryKey: ["/api/providers", providers[0]?.id, "models"],
-    enabled: !!providers[0],
+    queryKey: ["/api/models"],
   });
 
   // WebSocket setup
@@ -57,6 +52,14 @@ export default function ChatInterface({ chats }: ChatInterfaceProps) {
 
     try {
       const socket = new WebSocket(wsUrl);
+
+      socket.onopen = () => {
+        console.log("WebSocket connected");
+      };
+
+      socket.onerror = (error) => {
+        console.error("WebSocket error:", error);
+      };
 
       socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
@@ -144,7 +147,7 @@ export default function ChatInterface({ chats }: ChatInterfaceProps) {
               New Chat
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
               <DialogTitle>Create New Chat</DialogTitle>
             </DialogHeader>
