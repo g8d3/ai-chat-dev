@@ -1,7 +1,7 @@
 import { useAuth } from "@/hooks/use-auth";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, LogOut, Beaker } from "lucide-react";
+import { MessageSquare, LogOut, Beaker, Database } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ProviderConfig from "@/components/settings/provider-config";
 import ModelList from "@/components/settings/model-list";
@@ -29,6 +29,11 @@ export default function SettingsPage() {
             <Button variant="ghost" size="icon" asChild>
               <Link href="/test">
                 <Beaker className="h-5 w-5" />
+              </Link>
+            </Button>
+            <Button variant="ghost" size="icon" asChild>
+              <Link href="/logs">
+                <Database className="h-5 w-5" />
               </Link>
             </Button>
             <Button 

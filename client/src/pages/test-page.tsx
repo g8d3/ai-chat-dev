@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/table/data-table";
-import { Loader2, Play, MessageSquare, Settings } from "lucide-react";
+import { Loader2, Play, MessageSquare, Settings, Database } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -243,6 +243,11 @@ export default function TestPage() {
             <Button variant="ghost" size="icon" asChild>
               <Link href="/settings">
                 <Settings className="h-5 w-5" />
+              </Link>
+            </Button>
+            <Button variant="ghost" size="icon" asChild>
+              <Link href="/logs">
+                <Database className="h-5 w-5" />
               </Link>
             </Button>
           </div>
