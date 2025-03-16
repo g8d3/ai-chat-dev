@@ -64,6 +64,7 @@ export default function ChatInterface({ chats }: ChatInterfaceProps) {
 
       socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
+        console.log("WebSocket message received:", data);
         if (data.type === "document_update" && data.chatId === selectedChat) {
           queryClient.invalidateQueries({ queryKey: ["/api/chats", selectedChat, "messages"] });
         }
