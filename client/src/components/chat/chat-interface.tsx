@@ -4,9 +4,14 @@ import { Chat, Message, InsertMessage, InsertChat, AIModel } from "@shared/schem
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Loader2, Send, Plus } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 
 interface ChatInterfaceProps {
   chats: Chat[];
@@ -19,42 +24,55 @@ export default function ChatInterface({ chats }: ChatInterfaceProps) {
   const [ws, setWs] = useState<WebSocket | null>(null);
   const { toast } = useToast();
 
+  const form = useForm<InsertChat>({
+    defaultValues: {
+      name: "New Chat",
+      modelId: undefined,
+      isDocument: false,
+    },
+  });
+
   const { data: messages = [], isLoading: messagesLoading } = useQuery<Message[]>({
     queryKey: ["/api/chats", selectedChat, "messages"],
     enabled: !!selectedChat,
   });
 
-  // Get the first available model to use for new chats
+  // Get the models for the chat
   const { data: providers = [] } = useQuery<any[]>({
     queryKey: ["/api/providers"],
   });
 
-  const firstProvider = providers[0];
   const { data: models = [] } = useQuery<AIModel[]>({
-    queryKey: ["/api/providers", firstProvider?.id, "models"],
-    enabled: !!firstProvider,
+    queryKey: ["/api/providers", providers[0]?.id, "models"],
+    enabled: !!providers[0],
   });
 
   // WebSocket setup
   useEffect(() => {
     if (!selectedChat) return;
 
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
-    const socket = new WebSocket(wsUrl);
+    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsHost = window.location.host;
+    const wsUrl = `${wsProtocol}//${wsHost}/ws`;
 
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === "document_update" && data.chatId === selectedChat) {
-        queryClient.invalidateQueries({ queryKey: ["/api/chats", selectedChat, "messages"] });
-      }
-    };
+    try {
+      const socket = new WebSocket(wsUrl);
 
-    setWs(socket);
+      socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === "document_update" && data.chatId === selectedChat) {
+          queryClient.invalidateQueries({ queryKey: ["/api/chats", selectedChat, "messages"] });
+        }
+      };
 
-    return () => {
-      socket.close();
-    };
+      setWs(socket);
+
+      return () => {
+        socket.close();
+      };
+    } catch (error) {
+      console.error("WebSocket connection error:", error);
+    }
   }, [selectedChat]);
 
   const scrollToBottom = () => {
@@ -73,6 +91,7 @@ export default function ChatInterface({ chats }: ChatInterfaceProps) {
     onSuccess: (newChat) => {
       queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
       setSelectedChat(newChat.id);
+      form.reset();
     },
     onError: (error: Error) => {
       toast({
@@ -111,38 +130,73 @@ export default function ChatInterface({ chats }: ChatInterfaceProps) {
     });
   };
 
-  const createNewChat = () => {
-    if (!models.length) {
-      toast({
-        title: "Cannot create chat",
-        description: "Please add an AI model in the settings first",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    createChatMutation.mutate({
-      name: "New Chat",
-      modelId: models[0].id,
-      isDocument: false,
-    });
-  };
-
   return (
     <div className="grid grid-cols-4 gap-6 h-[calc(100vh-8rem)]">
       <div className="col-span-1 space-y-4">
-        <Button 
-          className="w-full"
-          onClick={createNewChat}
-          disabled={createChatMutation.isPending}
-        >
-          {createChatMutation.isPending ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Plus className="mr-2 h-4 w-4" />
-          )}
-          New Chat
-        </Button>
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button className="w-full">
+              {createChatMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="mr-2 h-4 w-4" />
+              )}
+              New Chat
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create New Chat</DialogTitle>
+            </DialogHeader>
+            <Form {...form}>
+              <form
+                onSubmit={form.handleSubmit((data) => createChatMutation.mutate(data))}
+                className="space-y-4"
+              >
+                <FormField
+                  control={form.control}
+                  name="modelId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Model</FormLabel>
+                      <Select
+                        onValueChange={(value) => field.onChange(parseInt(value))}
+                        value={field.value?.toString()}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a model" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {models.map((model) => (
+                            <SelectItem
+                              key={model.id}
+                              value={model.id.toString()}
+                            >
+                              {model.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={createChatMutation.isPending || !models.length}
+                >
+                  {createChatMutation.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : null}
+                  Create Chat
+                </Button>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
 
         <div className="space-y-2">
           {chats.map((chat) => (

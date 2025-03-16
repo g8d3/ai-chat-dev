@@ -2,13 +2,19 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
-import { WebSocketServer } from "ws";
+import { WebSocketServer, WebSocket } from "ws";
 import { insertProviderSchema, insertModelSchema, insertPromptSchema, insertChatSchema, insertMessageSchema } from "@shared/schema";
 
 function extractApiKey(key: string) {
   const firstPart = key.slice(0, 4);
   const lastPart = key.slice(-4);
   return `${firstPart}${'*'.repeat(key.length - 8)}${lastPart}`;
+}
+
+async function generateAIResponse(message: string, modelId: number): Promise<string> {
+  // For now, return a simple echo response
+  // TODO: Implement actual AI provider integration
+  return `[AI Response] ${message}`;
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -125,8 +131,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const data = insertMessageSchema.parse(req.body);
     const chat = await storage.getChat(data.chatId);
     if (!chat || chat.userId !== req.user.id) return res.sendStatus(404);
-    const message = await storage.createMessage(data);
-    res.status(201).json(message);
+
+    // Create user message
+    const userMessage = await storage.createMessage(data);
+
+    // Generate and create AI response
+    const aiResponse = await generateAIResponse(data.content, chat.modelId);
+    const aiMessage = await storage.createMessage({
+      chatId: chat.id,
+      role: "assistant",
+      content: aiResponse,
+    });
+
+    res.status(201).json(userMessage);
   });
 
   const httpServer = createServer(app);

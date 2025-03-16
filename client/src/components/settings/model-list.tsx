@@ -21,15 +21,10 @@ export default function ModelList() {
     queryKey: ["/api/providers"],
   });
 
-  const providersWithModels = providers.map(p => ({
-    ...p,
-    models: useQuery<AIModel[]>({
-      queryKey: ["/api/providers", p.id, "models"],
-      enabled: providers.length > 0,
-    }).data || []
-  }));
-
-  const allModels = providersWithModels.flatMap(p => p.models);
+  const { data: models = [] } = useQuery<AIModel[]>({
+    queryKey: ["/api/providers", providers[0]?.id, "models"],
+    enabled: providers.length > 0,
+  });
 
   const form = useForm<FormValues>({
     resolver: zodResolver(insertModelSchema),
@@ -221,7 +216,7 @@ export default function ModelList() {
 
       <DataTable
         columns={columns}
-        data={allModels}
+        data={models}
       />
     </div>
   );
