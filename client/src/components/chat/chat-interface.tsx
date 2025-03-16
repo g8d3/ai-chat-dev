@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Chat, Message, InsertMessage, InsertChat } from "@shared/schema";
+import { Chat, Message, InsertMessage, InsertChat, AIModel } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Send, Plus } from "lucide-react";
-import { queryClient } from "@/lib/queryClient";
-import { apiRequest } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface ChatInterfaceProps {
   chats: Chat[];
@@ -17,10 +17,22 @@ export default function ChatInterface({ chats }: ChatInterfaceProps) {
   const [message, setMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [ws, setWs] = useState<WebSocket | null>(null);
+  const { toast } = useToast();
 
   const { data: messages = [], isLoading: messagesLoading } = useQuery<Message[]>({
     queryKey: ["/api/chats", selectedChat, "messages"],
     enabled: !!selectedChat,
+  });
+
+  // Get the first available model to use for new chats
+  const { data: providers = [] } = useQuery<any[]>({
+    queryKey: ["/api/providers"],
+  });
+
+  const firstProvider = providers[0];
+  const { data: models = [] } = useQuery<AIModel[]>({
+    queryKey: ["/api/providers", firstProvider?.id, "models"],
+    enabled: !!firstProvider,
   });
 
   // WebSocket setup
@@ -62,6 +74,13 @@ export default function ChatInterface({ chats }: ChatInterfaceProps) {
       queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
       setSelectedChat(newChat.id);
     },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to create chat",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   const sendMessageMutation = useMutation({
@@ -72,6 +91,13 @@ export default function ChatInterface({ chats }: ChatInterfaceProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/chats", selectedChat, "messages"] });
       setMessage("");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to send message",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -86,9 +112,18 @@ export default function ChatInterface({ chats }: ChatInterfaceProps) {
   };
 
   const createNewChat = () => {
+    if (!models.length) {
+      toast({
+        title: "Cannot create chat",
+        description: "Please add an AI model in the settings first",
+        variant: "destructive",
+      });
+      return;
+    }
+
     createChatMutation.mutate({
       name: "New Chat",
-      modelId: 1, // Default model ID
+      modelId: models[0].id,
       isDocument: false,
     });
   };
@@ -108,7 +143,7 @@ export default function ChatInterface({ chats }: ChatInterfaceProps) {
           )}
           New Chat
         </Button>
-        
+
         <div className="space-y-2">
           {chats.map((chat) => (
             <Button
