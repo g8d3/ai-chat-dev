@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Loader2, Send, Plus } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -46,6 +46,7 @@ export default function ChatInterface({ chats }: ChatInterfaceProps) {
   useEffect(() => {
     if (!selectedChat) return;
 
+    // Use the current window location for WebSocket connection
     const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const wsHost = window.location.host;
     const wsUrl = `${wsProtocol}//${wsHost}/ws`;
@@ -71,7 +72,9 @@ export default function ChatInterface({ chats }: ChatInterfaceProps) {
       setWs(socket);
 
       return () => {
-        socket.close();
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.close();
+        }
       };
     } catch (error) {
       console.error("WebSocket connection error:", error);
@@ -150,6 +153,9 @@ export default function ChatInterface({ chats }: ChatInterfaceProps) {
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
               <DialogTitle>Create New Chat</DialogTitle>
+              <DialogDescription>
+                Select an AI model to start a new conversation
+              </DialogDescription>
             </DialogHeader>
             <Form {...form}>
               <form

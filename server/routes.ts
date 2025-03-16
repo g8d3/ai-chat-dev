@@ -145,15 +145,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Create user message
     const userMessage = await storage.createMessage(data);
 
-    // Generate and create AI response
-    const aiResponse = await generateResponse(data.content, chat.modelId);
-    const aiMessage = await storage.createMessage({
-      chatId: chat.id,
-      role: "assistant",
-      content: aiResponse,
-    });
+    try {
+      // Generate and create AI response
+      const aiResponse = await generateResponse(data.content, chat.modelId);
+      await storage.createMessage({
+        chatId: chat.id,
+        role: "assistant",
+        content: aiResponse,
+      });
 
-    res.status(201).json(userMessage);
+      res.status(201).json(userMessage);
+    } catch (error) {
+      console.error("Error generating AI response:", error);
+      // Still return success for the user message, but log the error
+      res.status(201).json(userMessage);
+    }
   });
 
   const httpServer = createServer(app);
