@@ -19,28 +19,16 @@ interface AILog {
 }
 
 export default function LogsPage() {
-  // Mock data for now - we'll implement real logging later
-  const logs: AILog[] = [
-    {
-      id: 1,
-      timestamp: new Date(),
-      username: "ss",
-      modelName: "open-r1/olympiccoder-32b:free",
-      providerUrl: "https://openrouter.ai/api/v1",
-      chatTitle: "Test Chat",
-      messageSent: "Hi",
-      messageReceived: "No response generated",
-      status: "error",
-      errorMessage: "401 No auth credentials found"
-    }
-  ];
+  const { data: logs = [], isLoading } = useQuery<AILog[]>({
+    queryKey: ["/api/logs"],
+  });
 
   const columns = [
     {
       accessorKey: "timestamp",
       header: "Time",
       cell: ({ row }: { row: { original: AILog } }) => {
-        return row.original.timestamp.toLocaleString();
+        return new Date(row.original.timestamp).toLocaleString();
       },
     },
     {

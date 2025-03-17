@@ -26,22 +26,24 @@ export async function generateResponse(message: string, modelId: number): Promis
     if (!provider) throw new Error("Provider not found");
 
     console.log("Making API request to provider");
-    const openai = await getOpenAIClient(modelId); // Added this line to use the client
+    const openai = await getOpenAIClient(modelId);
+
     const response = await openai.chat.completions.create({
       model: model.modelId,
       messages: [
         { role: "user", content: message }
       ],
-      headers: {
+      stream: false,
+      extra_headers: {
         "HTTP-Referer": "https://replit.com",
         "X-Title": "AI Chat"
       }
     });
 
-    console.log("Received API response");
+    console.log("Response from API:", response);
     return response.choices[0].message.content || "No response generated";
   } catch (error) {
     console.error("OpenAI API error:", error);
-    return "Sorry, I encountered an error processing your request.";
+    throw error;
   }
 }

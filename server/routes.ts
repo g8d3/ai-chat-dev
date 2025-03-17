@@ -83,59 +83,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.sendStatus(204);
   });
 
-  // System Prompts
-  app.get("/api/prompts", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const prompts = await storage.getPrompts(req.user.id);
-    res.json(prompts);
-  });
-
-  app.post("/api/prompts", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const data = insertPromptSchema.parse(req.body);
-    const prompt = await storage.createPrompt({ ...data, userId: req.user.id });
-    res.status(201).json(prompt);
-  });
-
-  app.patch("/api/prompts/:id", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const prompt = await storage.getPrompt(parseInt(req.params.id));
-    if (!prompt || prompt.userId !== req.user.id) return res.sendStatus(404);
-    const updated = await storage.updatePrompt(prompt.id, req.body);
-    res.json(updated);
-  });
-
-  app.delete("/api/prompts/:id", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const prompt = await storage.getPrompt(parseInt(req.params.id));
-    if (!prompt || prompt.userId !== req.user.id) return res.sendStatus(404);
-    await storage.deletePrompt(prompt.id);
-    res.sendStatus(204);
-  });
-
-  // Chats
-  app.get("/api/chats", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const chats = await storage.getChats(req.user.id);
-    res.json(chats);
-  });
-
-  app.post("/api/chats", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const data = insertChatSchema.parse(req.body);
-    const chat = await storage.createChat({ ...data, userId: req.user.id });
-    res.status(201).json(chat);
-  });
-
   // Messages
-  app.get("/api/chats/:chatId/messages", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const chat = await storage.getChat(parseInt(req.params.chatId));
-    if (!chat || chat.userId !== req.user.id) return res.sendStatus(404);
-    const messages = await storage.getMessages(chat.id);
-    res.json(messages);
-  });
-
   app.post("/api/messages", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const data = insertMessageSchema.parse(req.body);
@@ -148,18 +96,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Generate and create AI response
       const aiResponse = await generateResponse(data.content, chat.modelId);
-      await storage.createMessage({
+      const aiMessage = await storage.createMessage({
         chatId: chat.id,
         role: "assistant",
         content: aiResponse,
       });
 
-      res.status(201).json(userMessage);
-    } catch (error) {
+      // Store interaction log
+      const model = await storage.getModel(chat.modelId);
+      const provider = await storage.getProvider(model.providerId);
+
+      await storage.createLog({
+        timestamp: new Date(),
+        username: req.user.username,
+        modelName: model.name,
+        providerUrl: provider.baseUrl,
+        chatTitle: chat.name,
+        messageSent: data.content,
+        messageReceived: aiResponse,
+        status: "success"
+      });
+
+      // Broadcast to all connected clients
+      wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify({
+            type: "message",
+            chatId: chat.id,
+            message: aiMessage
+          }));
+        }
+      });
+
+      res.status(201).json([userMessage, aiMessage]);
+    } catch (error: any) {
       console.error("Error generating AI response:", error);
-      // Still return success for the user message, but log the error
-      res.status(201).json(userMessage);
+
+      // Log the error
+      const model = await storage.getModel(chat.modelId);
+      const provider = await storage.getProvider(model.providerId);
+
+      await storage.createLog({
+        timestamp: new Date(),
+        username: req.user.username,
+        modelName: model.name,
+        providerUrl: provider.baseUrl,
+        chatTitle: chat.name,
+        messageSent: data.content,
+        messageReceived: "No response generated",
+        status: "error",
+        errorMessage: error.message
+      });
+
+      res.status(201).json([userMessage]);
     }
+  });
+
+  // Logs endpoint
+  app.get("/api/logs", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const logs = await storage.getLogs();
+    res.json(logs);
   });
 
   const httpServer = createServer(app);
@@ -168,8 +165,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
   wss.on('connection', (ws) => {
+    console.log('WebSocket client connected');
+
     ws.on('message', async (data) => {
       const message = JSON.parse(data.toString());
+      console.log('WebSocket message received:', message);
+
       // Handle document collaboration updates
       if (message.type === 'document_update') {
         wss.clients.forEach((client) => {
@@ -178,6 +179,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         });
       }
+    });
+
+    ws.on('error', (error) => {
+      console.error('WebSocket error:', error);
+    });
+
+    ws.on('close', () => {
+      console.log('WebSocket client disconnected');
     });
   });
 
