@@ -131,7 +131,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Store interaction log
       const model = await storage.getModel(chat.modelId);
+      if (!model) throw new Error("Model not found");
+
       const provider = await storage.getProvider(model.providerId);
+      if (!provider) throw new Error("Provider not found");
 
       await storage.createLog({
         timestamp: new Date(),
@@ -161,7 +164,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Log the error
       const model = await storage.getModel(chat.modelId);
+      if (!model) throw new Error("Model not found");
+
       const provider = await storage.getProvider(model.providerId);
+      if (!provider) throw new Error("Provider not found");
 
       await storage.createLog({
         timestamp: new Date(),

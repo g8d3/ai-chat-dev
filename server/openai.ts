@@ -16,7 +16,8 @@ async function getOpenAIClient(modelId: number) {
     baseURL: provider.baseUrl,
     defaultHeaders: {
       "HTTP-Referer": "https://replit.com",
-      "X-Title": "AI Chat"
+      "X-Title": "AI Chat",
+      "Authorization": `Bearer ${provider.apiKey}`
     }
   });
 }
@@ -29,7 +30,7 @@ export async function generateResponse(message: string, modelId: number): Promis
     const provider = await storage.getProvider(model.providerId);
     if (!provider) throw new Error("Provider not found");
 
-    console.log("Making API request to provider");
+    console.log("Making API request to provider", provider.baseUrl);
     const openai = await getOpenAIClient(modelId);
 
     const response = await openai.chat.completions.create({
