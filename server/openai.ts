@@ -13,7 +13,11 @@ async function getOpenAIClient(modelId: number) {
 
   return new OpenAI({ 
     apiKey: provider.apiKey,
-    baseURL: provider.baseUrl 
+    baseURL: provider.baseUrl,
+    defaultHeaders: {
+      "HTTP-Referer": "https://replit.com",
+      "X-Title": "AI Chat"
+    }
   });
 }
 
@@ -33,11 +37,7 @@ export async function generateResponse(message: string, modelId: number): Promis
       messages: [
         { role: "user", content: message }
       ],
-      stream: false,
-      extra_headers: {
-        "HTTP-Referer": "https://replit.com",
-        "X-Title": "AI Chat"
-      }
+      stream: false
     });
 
     console.log("Response from API:", response);

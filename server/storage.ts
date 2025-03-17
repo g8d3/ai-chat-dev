@@ -4,6 +4,31 @@ import { User, InsertUser, AIProvider, InsertProvider, AIModel, InsertModel, Sys
 
 const MemoryStore = memorystore(session);
 
+interface AILog {
+  id: number;
+  timestamp: Date;
+  username: string;
+  modelName: string;
+  providerUrl: string;
+  chatTitle: string;
+  messageSent: string;
+  messageReceived: string;
+  status: "success" | "error";
+  errorMessage?: string;
+}
+
+interface InsertLog {
+  timestamp: Date;
+  username: string;
+  modelName: string;
+  providerUrl: string;
+  chatTitle: string;
+  messageSent: string;
+  messageReceived: string;
+  status: "success" | "error";
+  errorMessage?: string;
+}
+
 export interface IStorage {
   // User operations
   getUser(id: number): Promise<User | undefined>;
@@ -42,6 +67,10 @@ export interface IStorage {
   getMessages(chatId: number): Promise<Message[]>;
   createMessage(message: InsertMessage): Promise<Message>;
 
+  // Log operations
+  getLogs(): Promise<AILog[]>;
+  createLog(log: InsertLog): Promise<AILog>;
+
   // Session store
   sessionStore: session.Store;
 }
@@ -53,6 +82,7 @@ export class MemStorage implements IStorage {
   private prompts: Map<number, SystemPrompt>;
   private chats: Map<number, Chat>;
   private messages: Map<number, Message>;
+  private logs: Map<number, AILog>;
   public sessionStore: session.Store;
 
   private currentIds: {
@@ -62,6 +92,7 @@ export class MemStorage implements IStorage {
     prompt: number;
     chat: number;
     message: number;
+    log: number;
   };
 
   constructor() {
@@ -71,6 +102,7 @@ export class MemStorage implements IStorage {
     this.prompts = new Map();
     this.chats = new Map();
     this.messages = new Map();
+    this.logs = new Map();
     this.sessionStore = new MemoryStore({
       checkPeriod: 86400000,
     });
@@ -82,6 +114,7 @@ export class MemStorage implements IStorage {
       prompt: 1,
       chat: 1,
       message: 1,
+      log: 1,
     };
   }
 
@@ -245,6 +278,19 @@ export class MemStorage implements IStorage {
     const newMessage = { ...message, id, createdAt: new Date() };
     this.messages.set(id, newMessage);
     return newMessage;
+  }
+
+  // Log operations
+  async getLogs(): Promise<AILog[]> {
+    return Array.from(this.logs.values())
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  }
+
+  async createLog(insertLog: InsertLog): Promise<AILog> {
+    const id = this.currentIds.log++;
+    const log = { ...insertLog, id };
+    this.logs.set(id, log);
+    return log;
   }
 }
 
