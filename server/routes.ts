@@ -83,6 +83,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.sendStatus(204);
   });
 
+  // Chats
+  app.get("/api/chats", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const chats = await storage.getChats(req.user.id);
+    res.json(chats);
+  });
+
+  app.post("/api/chats", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const data = insertChatSchema.parse(req.body);
+      const chat = await storage.createChat({ ...data, userId: req.user.id });
+      res.status(201).json(chat);
+    } catch (error) {
+      console.error("Chat creation error:", error);
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/chats/:chatId/messages", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const chat = await storage.getChat(parseInt(req.params.chatId));
+    if (!chat || chat.userId !== req.user.id) return res.sendStatus(404);
+    const messages = await storage.getMessages(chat.id);
+    res.json(messages);
+  });
+
   // Messages
   app.post("/api/messages", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
