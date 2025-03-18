@@ -1,7 +1,6 @@
 import OpenAI from "openai";
 import { storage } from "./storage";
 
-// the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
 async function getOpenAIClient(modelId: number) {
   const model = await storage.getModel(modelId);
   if (!model) throw new Error("Model not found");
@@ -17,7 +16,6 @@ async function getOpenAIClient(modelId: number) {
     defaultHeaders: {
       "HTTP-Referer": "https://replit.com",
       "X-Title": "AI Chat",
-      "Authorization": `Bearer ${provider.apiKey}`
     }
   });
 }
@@ -38,7 +36,10 @@ export async function generateResponse(message: string, modelId: number): Promis
       messages: [
         { role: "user", content: message }
       ],
-      stream: false
+      stream: false,
+      headers: {
+        "Authorization": `Bearer ${provider.apiKey}`
+      }
     });
 
     console.log("Response from API:", response);
